@@ -1,4 +1,4 @@
-import io.github.nomisrev.repo.UserId;
+import io.github.nomisrev.users.UserId;
 
 CREATE TABLE IF NOT EXISTS users(
     id BIGSERIAL AS UserId PRIMARY KEY,
@@ -21,14 +21,37 @@ FROM users
 WHERE username = :username;
 
 selectProfile:
+SELECT users.username, users.bio, users.image, 0 AS following
+FROM users
+WHERE users.username = :username;
+
+selectProfileByViewer:
 SELECT users.username, users.bio, users.image,
 CASE
     WHEN following.follower_id IS NULL THEN 0
     ELSE 1
 END AS following
 FROM users
-LEFT JOIN following ON CAST(users.id AS BIGINT) = following.followed_id
+LEFT JOIN following
+    ON CAST(users.id AS BIGINT) = following.followed_id
+    AND following.follower_id = :viewerId
 WHERE users.username = :username;
+
+-- Batched profile lookup keyed by user id, used to hydrate the author profile (and
+-- "is the current user following this author" flag) for a page of articles in a single
+-- round trip instead of one selectById + one following-check per article. Pass -1 as
+-- :viewerId when there is no current user; no row will ever match that id.
+selectProfilesByViewer:
+SELECT users.id, users.username, users.bio, users.image,
+CASE
+    WHEN following.follower_id IS NULL THEN 0
+    ELSE 1
+END AS following
+FROM users
+LEFT JOIN following
+    ON users.id = following.followed_id
+    AND following.follower_id = :viewerId
+WHERE users.id IN :userIds;
 
 selectSecurityByEmail:
 SELECT id, username, salt, hashed_password, bio, image
@@ -47,13 +70,12 @@ RETURNING id;
 
 update:
 UPDATE users
-SET email = :email, username = :username, hashed_password = :hashed_password, bio = :bio, image = :image
-WHERE id = :userId;
-
--- 
--- UPDATE users SET
---    email = COALESCE(:email, email),
---    username = COALESCE(:username, username),
---    hashed_password = COALESCE(:hashed_password, hashed_password),
---    bio = COALESCE(:bio, bio),
---    image = COALESCE(:image, image)
+SET
+    email = COALESCE(:email, email),
+    username = COALESCE(:username, username),
+    salt = COALESCE(:salt, salt),
+    hashed_password = COALESCE(:hashed_password, hashed_password),
+    bio = COALESCE(:bio, bio),
+    image = COALESCE(:image, image)
+WHERE id = :userId
+RETURNING email, username, bio, image;
