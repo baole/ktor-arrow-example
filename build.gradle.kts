@@ -1,4 +1,5 @@
 import com.diffplug.spotless.kotlin.KtfmtStep
+import jarsearch.JarSearchTask
 
 @Suppress("DSL_SCOPE_VIOLATION") plugins {
   application
@@ -29,6 +30,12 @@ sqldelight {
 tasks {
   test {
     useJUnitPlatform()
+  }
+
+  register<JarSearchTask>("jarSearch") {
+    configureFrom(project)
+    group = "help"
+    description = "Search packages, types, and members in dependency jars."
   }
 }
 
