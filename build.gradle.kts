@@ -1,5 +1,6 @@
 import com.diffplug.spotless.kotlin.KtfmtStep
 import jarsearch.JarSearchTask
+import testreport.InspectTestTask
 
 @Suppress("DSL_SCOPE_VIOLATION") plugins {
   application
@@ -36,6 +37,12 @@ tasks {
     configureFrom(project)
     group = "help"
     description = "Search packages, types, and members in dependency jars."
+  }
+
+  register<InspectTestTask>("inspectTest") {
+    configureFrom(project)
+    group = "verification"
+    description = "Inspect failing tests from build/test-results. Use --name, --module, and --lines."
   }
 }
 
