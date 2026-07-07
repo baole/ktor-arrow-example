@@ -12,13 +12,18 @@ import arrow.core.raise.context.accumulating
 import arrow.core.raise.context.ensureOrAccumulate
 import arrow.core.raise.context.mapOrAccumulate
 import arrow.core.raise.context.withError
+import io.github.nomisrev.articles.ArticlesParameters
 import io.github.nomisrev.articles.FeedLimit
 import io.github.nomisrev.articles.FeedOffset
+import io.github.nomisrev.articles.FeedParameters
+import io.github.nomisrev.articles.GetArticles
+import io.github.nomisrev.articles.GetFeed
 import io.github.nomisrev.articles.NewArticle
 import io.github.nomisrev.articles.NewComment
 import io.github.nomisrev.users.Login
 import io.github.nomisrev.users.RegisterUser
 import io.github.nomisrev.users.Update
+import io.github.nomisrev.users.UserId
 
 sealed interface InvalidField {
     val errors: NonEmptyList<String>
@@ -233,5 +238,32 @@ fun Int.validFeedLimit(): FeedLimit =
         accumulate {
             minSize(MIN_FEED_LIMIT)
             FeedLimit(this@validFeedLimit)
+        }
+    }
+
+context(_: Raise<IncorrectInput>)
+fun FeedParameters.validate(userId: UserId): GetFeed =
+    withError(::IncorrectInput) {
+        accumulate {
+            val offset by accumulating { offset.validFeedOffset() }
+            val limit by accumulating { limit.validFeedLimit() }
+            GetFeed(userId, limit.limit, offset.offset)
+        }
+    }
+
+context(_: Raise<IncorrectInput>)
+fun ArticlesParameters.validate(currentUserId: UserId?): GetArticles =
+    withError(::IncorrectInput) {
+        accumulate {
+            val offset by accumulating { offset.validFeedOffset() }
+            val limit by accumulating { limit.validFeedLimit() }
+            GetArticles(
+                limit = limit.limit,
+                offset = offset.offset,
+                author = author,
+                favorited = favorited,
+                tag = tag,
+                currentUserId = currentUserId,
+            )
         }
     }

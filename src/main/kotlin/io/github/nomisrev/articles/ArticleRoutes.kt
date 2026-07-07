@@ -2,13 +2,8 @@
 
 package io.github.nomisrev.articles
 
-import arrow.core.raise.context.Raise
-import arrow.core.raise.context.accumulate
-import arrow.core.raise.context.accumulating
 import arrow.core.raise.context.ensureNotNull
-import arrow.core.raise.context.withError
 import io.github.nomisrev.Api
-import io.github.nomisrev.IncorrectInput
 import io.github.nomisrev.MissingParameter
 import io.github.nomisrev.auth.JwtConfig
 import io.github.nomisrev.auth.JwtContext
@@ -18,8 +13,6 @@ import io.github.nomisrev.profiles.Profile
 import io.github.nomisrev.route
 import io.github.nomisrev.users.UserId
 import io.github.nomisrev.users.UserService
-import io.github.nomisrev.validFeedLimit
-import io.github.nomisrev.validFeedOffset
 import io.github.nomisrev.validate
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.routing.Route
@@ -102,38 +95,11 @@ class ArticlesParameters(data: ParameterStorage) : Parameters(data) {
     var tag: String? by parameter()
     var offset: Int by parameter(default = 0)
     var limit: Int by parameter(default = 20)
-
-    context(_: Raise<IncorrectInput>)
-    fun validate(currentUserId: UserId?): GetArticles =
-        withError(::IncorrectInput) {
-            accumulate {
-                val offset by accumulating { offset.validFeedOffset() }
-                val limit by accumulating { limit.validFeedLimit() }
-                GetArticles(
-                    limit = limit.limit,
-                    offset = offset.offset,
-                    author = author,
-                    favorited = favorited,
-                    tag = tag,
-                    currentUserId = currentUserId,
-                )
-            }
-        }
 }
 
 class FeedParameters(data: ParameterStorage) : Parameters(data) {
     var offset: Int by parameter(default = 0)
     var limit: Int by parameter(default = 20)
-
-    context(_: Raise<IncorrectInput>)
-    fun validate(userId: UserId): GetFeed =
-        withError(::IncorrectInput) {
-            accumulate {
-                val offset by accumulating { offset.validFeedOffset() }
-                val limit by accumulating { limit.validFeedLimit() }
-                GetFeed(userId, limit.limit, offset.offset)
-            }
-        }
 }
 
 fun Route.articleRoutes(articleService: ArticleService, jwtService: JwtConfig<JwtContext>) {

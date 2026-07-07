@@ -4,13 +4,13 @@ import arrow.core.nonEmptyListOf
 import arrow.core.raise.either
 import io.github.nomisrev.EmailAlreadyExists
 import io.github.nomisrev.EmptyUpdate
-import io.github.nomisrev.IncorrectInput
 import io.github.nomisrev.InvalidEmail
 import io.github.nomisrev.InvalidPassword
 import io.github.nomisrev.InvalidUsername
 import io.github.nomisrev.PasswordNotMatched
 import io.github.nomisrev.SuspendFun
 import io.github.nomisrev.UsernameAlreadyExists
+import io.github.nomisrev.incorrectInput
 import io.github.nomisrev.registerUser
 import io.github.nomisrev.userFixture
 import io.github.nomisrev.withTestDependencies
@@ -33,7 +33,7 @@ class UserServiceSpec :
                     }
                     val errors =
                         nonEmptyListOf("Cannot be blank", "is too short (minimum is 1 characters)")
-                    val expected = IncorrectInput(InvalidUsername(errors))
+                    val expected = incorrectInput(InvalidUsername(errors))
                     res shouldBeLeft expected
                 }
 
@@ -48,7 +48,7 @@ class UserServiceSpec :
                         }
                     }
                     val errors = nonEmptyListOf("is too long (maximum is 25 characters)")
-                    val expected = IncorrectInput(InvalidUsername(errors))
+                    val expected = incorrectInput(InvalidUsername(errors))
                     res shouldBeLeft expected
                 }
 
@@ -62,7 +62,7 @@ class UserServiceSpec :
                         }
                     }
                     val errors = nonEmptyListOf("Cannot be blank", "'' is invalid email")
-                    val expected = IncorrectInput(InvalidEmail(errors))
+                    val expected = incorrectInput(InvalidEmail(errors))
                     res shouldBeLeft expected
                 }
 
@@ -77,7 +77,7 @@ class UserServiceSpec :
                         }
                     }
                     val errors = nonEmptyListOf("is too long (maximum is 350 characters)")
-                    val expected = IncorrectInput(InvalidEmail(errors))
+                    val expected = incorrectInput(InvalidEmail(errors))
                     res shouldBeLeft expected
                 }
 
@@ -92,7 +92,7 @@ class UserServiceSpec :
                         }
                     }
                     val errors = nonEmptyListOf("'$email' is invalid email")
-                    val expected = IncorrectInput(InvalidEmail(errors))
+                    val expected = incorrectInput(InvalidEmail(errors))
                     res shouldBeLeft expected
                 }
 
@@ -108,7 +108,7 @@ class UserServiceSpec :
                     }
                     val errors =
                         nonEmptyListOf("Cannot be blank", "is too short (minimum is 8 characters)")
-                    val expected = IncorrectInput(InvalidPassword(errors))
+                    val expected = incorrectInput(InvalidPassword(errors))
                     res shouldBeLeft expected
                 }
 
@@ -124,7 +124,7 @@ class UserServiceSpec :
                         }
                     }
                     val errors = nonEmptyListOf("is too long (maximum is 100 characters)")
-                    val expected = IncorrectInput(InvalidPassword(errors))
+                    val expected = incorrectInput(InvalidPassword(errors))
                     res shouldBeLeft expected
                 }
 
@@ -186,7 +186,7 @@ class UserServiceSpec :
                         either { dependencies.userService.login(Login("", validPw)) }
                     }
                     val errors = nonEmptyListOf("Cannot be blank", "'' is invalid email")
-                    val expected = IncorrectInput(InvalidEmail(errors))
+                    val expected = incorrectInput(InvalidEmail(errors))
                     res shouldBeLeft expected
                 }
 
@@ -196,7 +196,7 @@ class UserServiceSpec :
                         either { dependencies.userService.login(Login(email, validPw)) }
                     }
                     val errors = nonEmptyListOf("is too long (maximum is 350 characters)")
-                    val expected = IncorrectInput(InvalidEmail(errors))
+                    val expected = incorrectInput(InvalidEmail(errors))
                     res shouldBeLeft expected
                 }
 
@@ -206,7 +206,7 @@ class UserServiceSpec :
                         either { dependencies.userService.login(Login(email, validPw)) }
                     }
                     val errors = nonEmptyListOf("'$email' is invalid email")
-                    val expected = IncorrectInput(InvalidEmail(errors))
+                    val expected = incorrectInput(InvalidEmail(errors))
                     res shouldBeLeft expected
                 }
 
@@ -217,7 +217,7 @@ class UserServiceSpec :
                     }
                     val errors =
                         nonEmptyListOf("Cannot be blank", "is too short (minimum is 8 characters)")
-                    val expected = IncorrectInput(InvalidPassword(errors))
+                    val expected = incorrectInput(InvalidPassword(errors))
                     res shouldBeLeft expected
                 }
 
@@ -228,7 +228,7 @@ class UserServiceSpec :
                         either { dependencies.userService.login(Login(validEmail, password)) }
                     }
                     val errors = nonEmptyListOf("is too long (maximum is 100 characters)")
-                    val expected = IncorrectInput(InvalidPassword(errors))
+                    val expected = incorrectInput(InvalidPassword(errors))
                     res shouldBeLeft expected
                 }
 

@@ -1,6 +1,6 @@
 package io.github.nomisrev.articles
 
-import arrow.core.raise.either
+import de.infix.testBalloon.framework.core.testSuite
 import io.github.nomisrev.Api
 import io.github.nomisrev.Api.Articles
 import io.github.nomisrev.Api.Articles.Slug
@@ -16,12 +16,12 @@ import io.github.nomisrev.Api.Articles.Slug.delete as deleteArticle
 import io.github.nomisrev.Api.Articles.Slug.get
 import io.github.nomisrev.Api.Articles.Slug.update as updateArticle
 import io.github.nomisrev.GenericErrorModel
-import io.github.nomisrev.articleFixture
+import io.github.nomisrev.client
+import io.github.nomisrev.createArticle
+import io.github.nomisrev.dependencies
 import io.github.nomisrev.registerUser
+import io.github.nomisrev.testServer
 import io.github.nomisrev.tokenAuth
-import io.github.nomisrev.withServer
-import io.kotest.assertions.arrow.core.shouldBeRight
-import io.kotest.core.spec.style.StringSpec
 import io.ktor.client.call.body
 import io.ktor.http.HttpStatusCode
 import opensavvy.spine.api.div
@@ -29,599 +29,346 @@ import opensavvy.spine.api.invoke
 import opensavvy.spine.client.bodyOrThrow
 import opensavvy.spine.client.request
 
-class ArticlesRouteSpec :
-    StringSpec({
-        "Article by slug not found" {
-            withServer {
-                val response = request(Api / Articles / Slug("slug") / get)
+val ArticlesRouteSuite by testSuite {
+    testServer("Article by slug not found") {
+        val response = client.request(Api / Articles / Slug("slug") / get)
 
-                assert(response.httpResponse.status == HttpStatusCode.UnprocessableEntity)
-                assert(
-                    response.httpResponse.body<GenericErrorModel>().errors.body ==
-                        ["Article by slug slug not found"]
-                )
+        assert(response.httpResponse.status == HttpStatusCode.UnprocessableEntity)
+        assert(
+            response.httpResponse.body<GenericErrorModel>().errors.body ==
+                ["Article by slug slug not found"]
+        )
+    }
+
+    testServer("Can get an article by slug") {
+        val user = registerUser()
+        val created = createArticle(user.userId)
+
+        val response = client.request(Api / Articles / Slug(created.slug) / get)
+
+        val bodyOrThrow = response.bodyOrThrow()
+        with(bodyOrThrow.article) {
+            assert(articleId == created.articleId)
+            assert(slug == created.slug)
+            assert(title == created.title)
+            assert(description == created.description)
+            assert(body == created.body)
+            assert(author == created.author)
+            assert(favorited == created.favorited)
+            assert(favoritesCount == created.favoritesCount)
+            assert(createdAt == created.createdAt)
+            assert(updatedAt == created.updatedAt)
+            assert(tagList.toSet() == created.tagList.toSet())
+        }
+    }
+
+    testServer("authenticated article reads return viewer specific metadata") {
+        val author = registerUser()
+        val viewer = registerUser()
+        val created = createArticle(author.userId)
+
+        val _ = dependencies.userPersistence.followProfile(author.user.username, viewer.userId)
+        val _ =
+            dependencies.articleService.favoriteArticle(
+                io.github.nomisrev.articles.Slug(created.slug),
+                viewer.userId,
+            )
+
+        val response =
+            client.request(Api / Articles / Slug(created.slug) / get) {
+                tokenAuth(viewer.token.value)
             }
+
+        val body: SingleArticleResponse = response.bodyOrThrow()
+        with(body.article) {
+            assert(favorited)
+            assert(favoritesCount == 1L)
+            assert(this.author.following)
+        }
+    }
+
+    testServer("can update an article by slug") {
+        val author = registerUser()
+        val created = createArticle(author.userId)
+
+        val response =
+            client.request(
+                Api / Articles / Slug(created.slug) / updateArticle,
+                ArticleWrapper(UpdateArticle(body = "With two hands")),
+            ) {
+                tokenAuth(author.token.value)
+            }
+
+        assert(response.httpResponse.status == HttpStatusCode.OK)
+        val body: SingleArticleResponse = response.bodyOrThrow()
+        assert(body.article.slug == created.slug)
+        assert(body.article.title == created.title)
+        assert(body.article.description == created.description)
+        assert(body.article.body == "With two hands")
+        assert(body.article.author.username == author.user.username)
+    }
+
+    testServer("favoriting an article updates the response and persisted state") {
+        val author = registerUser()
+        val viewer = registerUser()
+        val created = createArticle(author.userId)
+
+        val favoriteResponse =
+            client.request(Api / Articles / Slug(created.slug) / Favorite / favoriteArticle) {
+                tokenAuth(viewer.token.value)
+            }
+
+        val readResponse =
+            client.request(Api / Articles / Slug(created.slug) / get) {
+                tokenAuth(viewer.token.value)
+            }
+
+        val favoriteBody: SingleArticleResponse = favoriteResponse.bodyOrThrow()
+        with(favoriteBody.article) {
+            assert(favorited)
+            assert(favoritesCount == 1L)
         }
 
-        "Can get an article by slug" {
-            withServer { dependencies ->
-                val user = dependencies.registerUser()
-                either {
-                    val article = articleFixture()
-                    val created =
-                        dependencies.articleService.createArticle(
-                            CreateArticle(
-                                user.userId,
-                                article.title,
-                                article.description,
-                                article.body,
-                                article.tags,
-                            )
-                        )
+        val readBody: SingleArticleResponse = readResponse.bodyOrThrow()
+        with(readBody.article) {
+            assert(favorited)
+            assert(favoritesCount == 1L)
+        }
+    }
 
-                    val response = request(Api / Articles / Slug(created.slug) / get)
+    testServer("favoriting an already favorited article is idempotent") {
+        val author = registerUser()
+        val viewer = registerUser()
+        val created = createArticle(author.userId)
 
-                    val bodyOrThrow = response.bodyOrThrow()
-                    with(bodyOrThrow.article) {
-                        assert(articleId == created.articleId)
-                        assert(slug == created.slug)
-                        assert(title == created.title)
-                        assert(description == created.description)
-                        assert(body == created.body)
-                        assert(author == created.author)
-                        assert(favorited == created.favorited)
-                        assert(favoritesCount == created.favoritesCount)
-                        assert(createdAt == created.createdAt)
-                        assert(updatedAt == created.updatedAt)
-                        assert(tagList.toSet() == created.tagList.toSet())
-                    }
-                }
-                    .shouldBeRight()
+        val _ =
+            client.request(Api / Articles / Slug(created.slug) / Favorite / favoriteArticle) {
+                tokenAuth(viewer.token.value)
             }
+
+        val secondFavoriteResponse =
+            client.request(Api / Articles / Slug(created.slug) / Favorite / favoriteArticle) {
+                tokenAuth(viewer.token.value)
+            }
+
+        val readResponse =
+            client.request(Api / Articles / Slug(created.slug) / get) {
+                tokenAuth(viewer.token.value)
+            }
+
+        val secondFavoriteBody: SingleArticleResponse = secondFavoriteResponse.bodyOrThrow()
+        with(secondFavoriteBody.article) {
+            assert(favorited)
+            assert(favoritesCount == 1L)
         }
 
-        "authenticated article reads return viewer specific metadata" {
-            withServer { dependencies ->
-                val author = dependencies.registerUser()
-                val viewer = dependencies.registerUser()
-                val response = either {
-                    val article = articleFixture()
-                    val created =
-                        dependencies.articleService.createArticle(
-                            CreateArticle(
-                                author.userId,
-                                article.title,
-                                article.description,
-                                article.body,
-                                article.tags,
-                            )
-                        )
+        val readBody: SingleArticleResponse = readResponse.bodyOrThrow()
+        with(readBody.article) {
+            assert(favorited)
+            assert(favoritesCount == 1L)
+        }
+    }
 
-                    val _ =
-                        dependencies.userPersistence.followProfile(
-                            author.user.username,
-                            viewer.userId,
-                        )
-                    val _ =
-                        dependencies.articleService.favoriteArticle(
-                            io.github.nomisrev.articles.Slug(created.slug),
-                            viewer.userId,
-                        )
+    testServer("unfavoriting an article updates the response and persisted state") {
+        val author = registerUser()
+        val viewer = registerUser()
+        val created = createArticle(author.userId)
 
-                    request(Api / Articles / Slug(created.slug) / get) {
-                        tokenAuth(viewer.token.value)
-                    }
-                }
-                    .shouldBeRight()
-
-                val body: SingleArticleResponse = response.bodyOrThrow()
-                with(body.article) {
-                    assert(favorited)
-                    assert(favoritesCount == 1L)
-                    assert(this.author.following)
-                }
+        val _ =
+            client.request(Api / Articles / Slug(created.slug) / Favorite / favoriteArticle) {
+                tokenAuth(viewer.token.value)
             }
+
+        val unfavoriteResponse =
+            client.request(Api / Articles / Slug(created.slug) / Favorite / unfavoriteArticle) {
+                tokenAuth(viewer.token.value)
+            }
+
+        val readResponse =
+            client.request(Api / Articles / Slug(created.slug) / get) {
+                tokenAuth(viewer.token.value)
+            }
+
+        val unfavoriteBody: SingleArticleResponse = unfavoriteResponse.bodyOrThrow()
+        with(unfavoriteBody.article) {
+            assert(!favorited)
+            assert(favoritesCount == 0L)
         }
 
-        "can update an article by slug" {
-            withServer { dependencies ->
-                val author = dependencies.registerUser()
-
-                either {
-                    val article = articleFixture()
-                    val created =
-                        dependencies.articleService.createArticle(
-                            CreateArticle(
-                                author.userId,
-                                article.title,
-                                article.description,
-                                article.body,
-                                article.tags,
-                            )
-                        )
-
-                    val response =
-                        request(
-                            Api / Articles / Slug(created.slug) / updateArticle,
-                            ArticleWrapper(UpdateArticle(body = "With two hands")),
-                        ) {
-                            tokenAuth(author.token.value)
-                        }
-
-                    assert(response.httpResponse.status == HttpStatusCode.OK)
-                    val body: SingleArticleResponse = response.bodyOrThrow()
-                    assert(body.article.slug == created.slug)
-                    assert(body.article.title == created.title)
-                    assert(body.article.description == created.description)
-                    assert(body.article.body == "With two hands")
-                    assert(body.article.author.username == author.user.username)
-                }
-                    .shouldBeRight()
-            }
+        val readBody: SingleArticleResponse = readResponse.bodyOrThrow()
+        with(readBody.article) {
+            assert(!favorited)
+            assert(favoritesCount == 0L)
         }
+    }
 
-        "favoriting an article updates the response and persisted state" {
-            withServer { dependencies ->
-                val author = dependencies.registerUser()
-                val viewer = dependencies.registerUser()
+    testServer("can get comments for an article by slug when authenticated") {
+        val user = registerUser()
+        val created = createArticle(user.userId)
 
-                val [favoriteResponse, readResponse] =
-                    either {
-                        val article = articleFixture()
-                        val created =
-                            dependencies.articleService.createArticle(
-                                CreateArticle(
-                                    author.userId,
-                                    article.title,
-                                    article.description,
-                                    article.body,
-                                    article.tags,
-                                )
-                            )
-
-                        val favoriteResponse =
-                            request(
-                                Api / Articles / Slug(created.slug) / Favorite / favoriteArticle
-                            ) {
-                                tokenAuth(viewer.token.value)
-                            }
-
-                        val readResponse =
-                            request(Api / Articles / Slug(created.slug) / get) {
-                                tokenAuth(viewer.token.value)
-                            }
-
-                        favoriteResponse to readResponse
-                    }
-                        .shouldBeRight()
-
-                val favoriteBody: SingleArticleResponse = favoriteResponse.bodyOrThrow()
-                with(favoriteBody.article) {
-                    assert(favorited)
-                    assert(favoritesCount == 1L)
-                }
-
-                val readBody: SingleArticleResponse = readResponse.bodyOrThrow()
-                with(readBody.article) {
-                    assert(favorited)
-                    assert(favoritesCount == 1L)
-                }
+        val response =
+            client.request(Api / Articles / Slug(created.slug) / Comments / list) {
+                tokenAuth(user.token.value)
             }
-        }
 
-        "favoriting an already favorited article is idempotent" {
-            withServer { dependencies ->
-                val author = dependencies.registerUser()
-                val viewer = dependencies.registerUser()
+        val body = response.bodyOrThrow()
+        assert(body.comments == emptyList<Comment>())
+    }
 
-                val [secondFavoriteResponse, readResponse] =
-                    either {
-                        val article = articleFixture()
-                        val created =
-                            dependencies.articleService.createArticle(
-                                CreateArticle(
-                                    author.userId,
-                                    article.title,
-                                    article.description,
-                                    article.body,
-                                    article.tags,
-                                )
-                            )
+    testServer("can get comments for an article when not authenticated") {
+        val (userId) = registerUser()
+        val created = createArticle(userId)
 
-                        val _ =
-                            request(
-                                Api / Articles / Slug(created.slug) / Favorite / favoriteArticle
-                            ) {
-                                tokenAuth(viewer.token.value)
-                            }
+        val response = client.request(Api / Articles / Slug(created.slug) / Comments / list)
 
-                        val secondFavoriteResponse =
-                            request(
-                                Api / Articles / Slug(created.slug) / Favorite / favoriteArticle
-                            ) {
-                                tokenAuth(viewer.token.value)
-                            }
+        val body = response.bodyOrThrow()
+        assert(body.comments == emptyList<Comment>())
+    }
 
-                        val readResponse =
-                            request(Api / Articles / Slug(created.slug) / get) {
-                                tokenAuth(viewer.token.value)
-                            }
+    testServer("can list comments for an article when authenticated") {
+        val (user, token, userId) = registerUser()
+        val created = createArticle(userId)
 
-                        secondFavoriteResponse to readResponse
-                    }
-                        .shouldBeRight()
-
-                val secondFavoriteBody: SingleArticleResponse = secondFavoriteResponse.bodyOrThrow()
-                with(secondFavoriteBody.article) {
-                    assert(favorited)
-                    assert(favoritesCount == 1L)
-                }
-
-                val readBody: SingleArticleResponse = readResponse.bodyOrThrow()
-                with(readBody.article) {
-                    assert(favorited)
-                    assert(favoritesCount == 1L)
-                }
+        val _ =
+            client.request(
+                Api / Articles / Slug(created.slug) / Comments / create,
+                CommentWrapper(NewComment("Thank you so much!")),
+            ) {
+                tokenAuth(token.value)
             }
-        }
 
-        "unfavoriting an article updates the response and persisted state" {
-            withServer { dependencies ->
-                val author = dependencies.registerUser()
-                val viewer = dependencies.registerUser()
-
-                val [unfavoriteResponse, readResponse] =
-                    either {
-                        val article = articleFixture()
-                        val created =
-                            dependencies.articleService.createArticle(
-                                CreateArticle(
-                                    author.userId,
-                                    article.title,
-                                    article.description,
-                                    article.body,
-                                    article.tags,
-                                )
-                            )
-
-                        val _ =
-                            request(
-                                Api / Articles / Slug(created.slug) / Favorite / favoriteArticle
-                            ) {
-                                tokenAuth(viewer.token.value)
-                            }
-
-                        val unfavoriteResponse =
-                            request(
-                                Api / Articles / Slug(created.slug) / Favorite / unfavoriteArticle
-                            ) {
-                                tokenAuth(viewer.token.value)
-                            }
-
-                        val readResponse =
-                            request(Api / Articles / Slug(created.slug) / get) {
-                                tokenAuth(viewer.token.value)
-                            }
-
-                        unfavoriteResponse to readResponse
-                    }
-                        .shouldBeRight()
-
-                val unfavoriteBody: SingleArticleResponse = unfavoriteResponse.bodyOrThrow()
-                with(unfavoriteBody.article) {
-                    assert(!favorited)
-                    assert(favoritesCount == 0L)
-                }
-
-                val readBody: SingleArticleResponse = readResponse.bodyOrThrow()
-                with(readBody.article) {
-                    assert(!favorited)
-                    assert(favoritesCount == 0L)
-                }
+        val response =
+            client.request(Api / Articles / Slug(created.slug) / Comments / list) {
+                tokenAuth(token.value)
             }
-        }
 
-        "can get comments for an article by slug when authenticated" {
-            withServer { dependencies ->
-                val user = dependencies.registerUser()
-                val response = either {
-                    val article = articleFixture()
-                    val created =
-                        dependencies.articleService.createArticle(
-                            CreateArticle(
-                                user.userId,
-                                article.title,
-                                article.description,
-                                article.body,
-                                article.tags,
-                            )
-                        )
+        val body: MultipleCommentsResponse = response.bodyOrThrow()
+        assert(body.comments.size == 1)
+        val comment = body.comments.single()
+        assert(comment.body == "Thank you so much!")
+        assert(comment.author.username == user.username)
+    }
 
-                    request(Api / Articles / Slug(created.slug) / Comments / list) {
-                        tokenAuth(user.token.value)
-                    }
-                }
-                    .shouldBeRight()
+    testServer("can list comments for an article without authentication") {
+        val (user, token, userId) = registerUser()
+        val created = createArticle(userId)
 
-                val body = response.bodyOrThrow()
-                assert(body.comments == emptyList<Comment>())
+        val _ =
+            client.request(
+                Api / Articles / Slug(created.slug) / Comments / create,
+                CommentWrapper(NewComment("Thank you so much!")),
+            ) {
+                tokenAuth(token.value)
             }
-        }
 
-        "can get comments for an article when not authenticated" {
-            withServer { dependencies ->
-                val (userId) = dependencies.registerUser()
-                val response = either {
-                    val article = articleFixture()
-                    val created =
-                        dependencies.articleService.createArticle(
-                            CreateArticle(
-                                userId,
-                                article.title,
-                                article.description,
-                                article.body,
-                                article.tags,
-                            )
-                        )
+        val response = client.request(Api / Articles / Slug(created.slug) / Comments / list)
 
-                    request(Api / Articles / Slug(created.slug) / Comments / list)
-                }
-                    .shouldBeRight()
+        val body: MultipleCommentsResponse = response.bodyOrThrow()
+        assert(body.comments.size == 1)
+        val comment = body.comments.single()
+        assert(comment.body == "Thank you so much!")
+        assert(comment.author.username == user.username)
+    }
 
-                val body = response.bodyOrThrow()
-                assert(body.comments == emptyList<Comment>())
+    testServer("Can add a comment to an article") {
+        val (user, token, userId) = registerUser()
+        val comment = "This is a comment ${user.username}"
+        val created = createArticle(userId)
+
+        val response =
+            client.request(
+                Api / Articles / Slug(created.slug) / Comments / create,
+                CommentWrapper(NewComment(comment)),
+            ) {
+                tokenAuth(token.value)
             }
-        }
 
-        "can list comments for an article when authenticated" {
-            withServer { dependencies ->
-                val (user, token, userId) = dependencies.registerUser()
+        val body = response.bodyOrThrow()
+        assert(body.comment.body == comment)
+        assert(body.comment.author.username == user.username)
+    }
 
-                either {
-                    val article = articleFixture()
-                    val created =
-                        dependencies.articleService.createArticle(
-                            CreateArticle(
-                                userId,
-                                article.title,
-                                article.description,
-                                article.body,
-                                article.tags,
-                            )
-                        )
+    testServer("Can not add a comment to an article with invalid token") {
+        val (userId) = registerUser()
+        val created = createArticle(userId)
 
-                    request(
-                        Api / Articles / Slug(created.slug) / Comments / create,
-                        CommentWrapper(NewComment("Thank you so much!")),
-                    ) {
-                        tokenAuth(token.value)
-                    }
-
-                    val response =
-                        request(Api / Articles / Slug(created.slug) / Comments / list) {
-                            tokenAuth(token.value)
-                        }
-
-                    val body: MultipleCommentsResponse = response.bodyOrThrow()
-                    assert(body.comments.size == 1)
-                    val comment = body.comments.single()
-                    assert(comment.body == "Thank you so much!")
-                    assert(comment.author.username == user.username)
-                }
-                    .shouldBeRight()
+        val response =
+            client.request(
+                Api / Articles / Slug(created.slug) / Comments / create,
+                CommentWrapper(NewComment("This is a comment")),
+            ) {
+                tokenAuth("invalid-token")
             }
-        }
 
-        "can list comments for an article without authentication" {
-            withServer { dependencies ->
-                val (user, token, userId) = dependencies.registerUser()
+        assert(response.httpResponse.status == HttpStatusCode.Unauthorized)
+    }
 
-                either {
-                    val article = articleFixture()
-                    val created =
-                        dependencies.articleService.createArticle(
-                            CreateArticle(
-                                userId,
-                                article.title,
-                                article.description,
-                                article.body,
-                                article.tags,
-                            )
-                        )
+    testServer("Can not add a comment to an article with empty body") {
+        val user = registerUser()
+        val created = createArticle(user.userId)
 
-                    request(
-                        Api / Articles / Slug(created.slug) / Comments / create,
-                        CommentWrapper(NewComment("Thank you so much!")),
-                    ) {
-                        tokenAuth(token.value)
-                    }
-
-                    val response = request(Api / Articles / Slug(created.slug) / Comments / list)
-
-                    val body: MultipleCommentsResponse = response.bodyOrThrow()
-                    assert(body.comments.size == 1)
-                    val comment = body.comments.single()
-                    assert(comment.body == "Thank you so much!")
-                    assert(comment.author.username == user.username)
-                }
-                    .shouldBeRight()
+        val response =
+            client.request(
+                Api / Articles / Slug(created.slug) / Comments / create,
+                CommentWrapper(NewComment("")),
+            ) {
+                tokenAuth(user.token.value)
             }
-        }
 
-        "Can add a comment to an article" {
-            withServer { dependencies ->
-                val (user, token, userId) = dependencies.registerUser()
-                either {
-                    val comment = "This is a comment ${user.username}"
-                    val article = articleFixture()
-                    val created =
-                        dependencies.articleService.createArticle(
-                            CreateArticle(
-                                userId,
-                                article.title,
-                                article.description,
-                                article.body,
-                                article.tags,
-                            )
-                        )
+        assert(response.httpResponse.status == HttpStatusCode.UnprocessableEntity)
+    }
 
-                    val response =
-                        request(
-                            Api / Articles / Slug(created.slug) / Comments / create,
-                            CommentWrapper(NewComment(comment)),
-                        ) {
-                            tokenAuth(token.value)
-                        }
+    testServer("can delete a comment from an article") {
+        val user = registerUser()
+        val created = createArticle(user.userId)
 
-                    val body = response.bodyOrThrow()
-                    assert(body.comment.body == comment)
-                    assert(body.comment.author.username == user.username)
+        val createdComment =
+            client
+                .request(
+                    Api / Articles / Slug(created.slug) / Comments / create,
+                    CommentWrapper(NewComment("Thank you so much!")),
+                ) {
+                    tokenAuth(user.token.value)
                 }
-                    .shouldBeRight()
+                .bodyOrThrow()
+
+        val deleteResponse =
+            client.request(
+                Api /
+                    Articles /
+                    Slug(created.slug) /
+                    Comments /
+                    Id(createdComment.comment.id.toString()) /
+                    deleteComment
+            ) {
+                tokenAuth(user.token.value)
             }
-        }
 
-        "Can not add a comment to an article with invalid token" {
-            withServer { dependencies ->
-                val (userId) = dependencies.registerUser()
-                val response = either {
-                    val comment = "This is a comment"
-                    val article = articleFixture()
-                    val created =
-                        dependencies.articleService.createArticle(
-                            CreateArticle(
-                                userId,
-                                article.title,
-                                article.description,
-                                article.body,
-                                article.tags,
-                            )
-                        )
+        assert(deleteResponse.httpResponse.status == HttpStatusCode.OK)
 
-                    request(
-                        Api / Articles / Slug(created.slug) / Comments / create,
-                        CommentWrapper(NewComment(comment)),
-                    ) {
-                        tokenAuth("invalid-token")
-                    }
-                }
-                    .shouldBeRight()
-
-                assert(response.httpResponse.status == HttpStatusCode.Unauthorized)
+        val listResponse =
+            client.request(Api / Articles / Slug(created.slug) / Comments / list) {
+                tokenAuth(user.token.value)
             }
-        }
+        val listed: MultipleCommentsResponse = listResponse.bodyOrThrow()
+        assert(listed.comments.isEmpty())
+    }
 
-        "Can not add a comment to an article with empty body" {
-            withServer { dependencies ->
-                val user = dependencies.registerUser()
-                val response = either {
-                    val article = articleFixture()
-                    val created =
-                        dependencies.articleService.createArticle(
-                            CreateArticle(
-                                user.userId,
-                                article.title,
-                                article.description,
-                                article.body,
-                                article.tags,
-                            )
-                        )
+    testServer("can delete an article by slug") {
+        val user = registerUser()
+        val created = createArticle(user.userId)
 
-                    request(
-                        Api / Articles / Slug(created.slug) / Comments / create,
-                        CommentWrapper(NewComment("")),
-                    ) {
-                        tokenAuth(user.token.value)
-                    }
-                }
-                    .shouldBeRight()
-
-                assert(response.httpResponse.status == HttpStatusCode.UnprocessableEntity)
+        val deleteResponse =
+            client.request(Api / Articles / Slug(created.slug) / deleteArticle) {
+                tokenAuth(user.token.value)
             }
-        }
+        assert(deleteResponse.httpResponse.status == HttpStatusCode.OK)
 
-        "can delete a comment from an article" {
-            withServer { dependencies ->
-                val user = dependencies.registerUser()
-
-                either {
-                    val article = articleFixture()
-                    val created =
-                        dependencies.articleService.createArticle(
-                            CreateArticle(
-                                user.userId,
-                                article.title,
-                                article.description,
-                                article.body,
-                                article.tags,
-                            )
-                        )
-
-                    val createdComment =
-                        request(
-                                Api / Articles / Slug(created.slug) / Comments / create,
-                                CommentWrapper(NewComment("Thank you so much!")),
-                            ) {
-                                tokenAuth(user.token.value)
-                            }
-                            .bodyOrThrow()
-
-                    val deleteResponse =
-                        request(
-                            Api /
-                                Articles /
-                                Slug(created.slug) /
-                                Comments /
-                                Id(createdComment.comment.id.toString()) /
-                                deleteComment
-                        ) {
-                            tokenAuth(user.token.value)
-                        }
-
-                    assert(deleteResponse.httpResponse.status == HttpStatusCode.OK)
-
-                    val listResponse =
-                        request(Api / Articles / Slug(created.slug) / Comments / list) {
-                            tokenAuth(user.token.value)
-                        }
-                    val listed: MultipleCommentsResponse = listResponse.bodyOrThrow()
-                    assert(listed.comments.isEmpty())
-                }
-                    .shouldBeRight()
-            }
-        }
-
-        "can delete an article by slug" {
-            withServer { dependencies ->
-                val user = dependencies.registerUser()
-
-                either {
-                    val article = articleFixture()
-                    val created =
-                        dependencies.articleService.createArticle(
-                            CreateArticle(
-                                user.userId,
-                                article.title,
-                                article.description,
-                                article.body,
-                                article.tags,
-                            )
-                        )
-
-                    val deleteResponse =
-                        request(Api / Articles / Slug(created.slug) / deleteArticle) {
-                            tokenAuth(user.token.value)
-                        }
-                    assert(deleteResponse.httpResponse.status == HttpStatusCode.OK)
-
-                    val getResponse = request(Api / Articles / Slug(created.slug) / get)
-                    assert(getResponse.httpResponse.status == HttpStatusCode.UnprocessableEntity)
-                    assert(
-                        getResponse.httpResponse.body<GenericErrorModel>().errors.body ==
-                            ["Article by slug ${created.slug} not found"]
-                    )
-                }
-                    .shouldBeRight()
-            }
-        }
-    })
+        val getResponse = client.request(Api / Articles / Slug(created.slug) / get)
+        assert(getResponse.httpResponse.status == HttpStatusCode.UnprocessableEntity)
+        assert(
+            getResponse.httpResponse.body<GenericErrorModel>().errors.body ==
+                ["Article by slug ${created.slug} not found"]
+        )
+    }
+}
