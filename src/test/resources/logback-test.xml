@@ -1,0 +1,18 @@
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{YYYY-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!--
+      logback-test.xml takes priority over logback.xml on the test classpath. Application
+      logging is very noisy during the test suite (health-check registries, netty, flyway,
+      etc.), and some of it is written from background/shutdown-hook threads that Gradle
+      can't attribute to a specific test, so it bypasses `-q` entirely and floods the console.
+      Keep it at WARN by default; bump a specific logger to DEBUG locally when debugging.
+    -->
+    <root level="WARN">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>

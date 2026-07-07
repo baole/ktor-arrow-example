@@ -2,6 +2,7 @@
 arrow = "2.2.3"
 cohort = "2.9.10"
 detekt = "1.23.8"
+dev-tools = "0.0.1"
 hikari = "7.1.0"
 kjwt = "1.0.0"
 kotest = "6.2.1"
@@ -45,6 +46,7 @@ spine-api = { module = "dev.opensavvy.spine:api", version.ref = "spine" }
 spine-server = { module = "dev.opensavvy.spine:server", version.ref = "spine" }
 spine-server-arrow =  { module = "dev.opensavvy.spine:server-arrow", version.ref = "spine" }
 spine-client =  { module = "dev.opensavvy.spine:client", version.ref = "spine" }
+testballoon-framework-core = { module = "de.infix.testBalloon:testBalloon-framework-core", version.ref = "testballoon" }
 
 [bundles]
 arrow = [
@@ -69,6 +71,7 @@ kotest = [
 
 [plugins]
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+dev-tools = { id = "io.github.nomisrev.dev-tools", version.ref = "dev-tools" }
 kotest-multiplatform = { id = "io.kotest", version.ref = "kotest" }
 kotlin-assert = { id = "org.jetbrains.kotlin.plugin.power-assert", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

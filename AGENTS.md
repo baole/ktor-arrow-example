@@ -55,3 +55,36 @@ One of:
 # Find methods matching a name
 ./gradlew -q jarSearch --dependency "io.arrow-kt:arrow-core" --kind method --query fold
 ```
+
+### Inspecting failing tests
+
+Use the `inspectTest` Gradle task to read failing tests straight from Gradle's
+JUnit XML reports (the `TEST-*.xml` files under each module's
+`build/test-results`). Run a test task first, then query the results; no
+intermediate file or external tooling is required.
+
+Run it with `-q` to keep output clean:
+
+```bash
+./gradlew -q inspectTest [options]
+```
+
+### Options
+- `--name <text>` — case-insensitive substring matched against the test name and full name. Omit to list every failing test.
+- `--module <name>` — only match failures from this Gradle module
+- `--lines <n>` — max stack-trace lines per failure; `0` shows the full trace (default `10`)
+
+### Examples
+```bash
+# List every failing test
+./gradlew -q inspectTest
+
+# Show stack traces for matching tests
+./gradlew -q inspectTest --name "should parse"
+
+# Restrict to a single module
+./gradlew -q inspectTest --name "should parse" --module app
+
+# Show the full stack trace
+./gradlew -q inspectTest --name "should parse" --lines 0
+```

@@ -1,6 +1,5 @@
 import com.diffplug.spotless.kotlin.KtfmtStep
-import jarsearch.JarSearchTask
-import testreport.InspectTestTask
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 @Suppress("DSL_SCOPE_VIOLATION") plugins {
   application
@@ -11,8 +10,10 @@ import testreport.InspectTestTask
   alias(libs.plugins.kotest.multiplatform)
   alias(libs.plugins.sqldelight)
   alias(libs.plugins.ktor)
+  alias(libs.plugins.testballoon)
   alias(libs.plugins.spotless)
   alias(libs.plugins.version.catalog.update)
+  alias(libs.plugins.dev.tools)
 }
 
 application {
@@ -31,18 +32,6 @@ sqldelight {
 tasks {
   test {
     useJUnitPlatform()
-  }
-
-  register<JarSearchTask>("jarSearch") {
-    configureFrom(project)
-    group = "help"
-    description = "Search packages, types, and members in dependency jars."
-  }
-
-  register<InspectTestTask>("inspectTest") {
-    configureFrom(project)
-    group = "verification"
-    description = "Inspect failing tests from build/test-results. Use --name, --module, and --lines."
   }
 }
 
@@ -87,6 +76,7 @@ dependencies {
   testImplementation(libs.testcontainers.postgresql)
   testImplementation(libs.ktor.server.tests)
   testImplementation(libs.bundles.kotest)
+  testImplementation(libs.testballoon.framework.core)
 }
 
 kotlin {
