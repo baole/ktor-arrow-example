@@ -8,8 +8,9 @@ import org.gradle.api.tasks.testing.TestResult
 import org.gradle.kotlin.dsl.withType
 
 /**
- * Wires every `Test` task with a listener that prints the full name of each failing test as soon
- * as the task's root suite finishes. Gradle's own `-q` summary ("15 tests completed, 3 failed")
+ * Wires every `Test` task with a listener that reports on the task's root suite once it finishes.
+ * On failure it prints the full name of each failing test; on a green run it prints a short summary
+ * ("Ran N tests successfully. M tests ignored."). Gradle's own `-q` output is silent on success and
  * doesn't say which tests failed, so this fills that gap without needing `--info`/`--scan` or a
  * separate report-parsing step.
  *
@@ -43,7 +44,25 @@ internal object TestFailureListener {
 
         override fun afterSuite(suite: TestDescriptor, result: TestResult) {
           // The root suite has no parent; report once per task, not per nested suite.
-          if (suite.parent != null || failures.isEmpty()) return
+          if (suite.parent != null) return
+
+          if (failures.isEmpty()) {
+            // Gradle stays silent with `-q` on a green run; print a short summary instead.
+            if (result.testCount == 0L) return
+            val ran = result.testCount - result.skippedTestCount
+            val summary = buildString {
+              append("Ran $ran test")
+              if (ran != 1L) append("s")
+              append(" successfully in ${task.path}.")
+              if (result.skippedTestCount > 0L) {
+                append(" ${result.skippedTestCount} test")
+                if (result.skippedTestCount != 1L) append("s")
+                append(" ignored.")
+              }
+            }
+            task.logger.quiet("\n$summary")
+            return
+          }
 
           task.logger.quiet("\nFailed tests in ${task.path}:")
           failures.sorted().distinct().forEach { task.logger.quiet("  - $it") }
