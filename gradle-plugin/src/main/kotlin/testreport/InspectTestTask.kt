@@ -10,6 +10,7 @@ import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.options.Option
+import org.gradle.work.DisableCachingByDefault
 import org.w3c.dom.Element
 
 /**
@@ -24,6 +25,7 @@ import org.w3c.dom.Element
  *     ./gradlew inspectTest --name "should parse" --module app
  *     ./gradlew inspectTest --name "should parse" --lines 20   # 0 = unlimited
  */
+@DisableCachingByDefault(because = "Reads the latest build/test-results state; not worth caching.")
 abstract class InspectTestTask : DefaultTask() {
   private lateinit var moduleResultDirs: List<ModuleResults>
 

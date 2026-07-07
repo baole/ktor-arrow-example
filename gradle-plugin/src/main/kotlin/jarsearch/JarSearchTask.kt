@@ -18,7 +18,9 @@ import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.options.Option
+import org.gradle.work.DisableCachingByDefault
 
+@DisableCachingByDefault(because = "Searches the current classpath state; not worth caching.")
 abstract class JarSearchTask : DefaultTask() {
   private lateinit var configurationContainer: ConfigurationContainer
   private lateinit var dependencyHandler: DependencyHandler
