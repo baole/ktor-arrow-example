@@ -1,5 +1,6 @@
 package io.github.nomisrev.profiles
 
+import de.infix.testBalloon.framework.core.testSuite
 import io.github.nomisrev.Api
 import io.github.nomisrev.Api.Profiles
 import io.github.nomisrev.Api.Profiles.Username
@@ -8,197 +9,167 @@ import io.github.nomisrev.Api.Profiles.Username.Follow.add
 import io.github.nomisrev.Api.Profiles.Username.Follow.remove
 import io.github.nomisrev.Api.Profiles.Username.get
 import io.github.nomisrev.GenericErrorModel
+import io.github.nomisrev.client
 import io.github.nomisrev.registerUser
+import io.github.nomisrev.testServer
 import io.github.nomisrev.tokenAuth
 import io.github.nomisrev.userFixture
-import io.github.nomisrev.withServer
-import io.kotest.core.spec.style.StringSpec
-import io.kotest.matchers.shouldBe
-import io.ktor.client.call.*
-import io.ktor.http.*
-import opensavvy.spine.api.*
+import io.ktor.client.call.body
+import io.ktor.http.HttpStatusCode
+import opensavvy.spine.api.div
+import opensavvy.spine.api.invoke
 import opensavvy.spine.client.bodyOrThrow
 import opensavvy.spine.client.request
 
-class ProfileRouteSpec :
-    StringSpec({
-        "Can follow profile" {
-            withServer { dependencies ->
-                val (token) = dependencies.registerUser()
-                val followed = userFixture()
-                dependencies.registerUser(followed)
+@Suppress("RETURN_VALUE_NOT_USED_COERCION")
+val ProfileRouteSuite by testSuite {
+    testServer("can follow a profile") {
+        val (token) = registerUser()
+        val followed = userFixture()
+        registerUser(followed)
 
-                val response =
-                    request(Api / Profiles / Username(followed.username) / Follow / add) {
-                        tokenAuth(token.value)
-                    }
-
-                response.httpResponse.status shouldBe HttpStatusCode.OK
-                with(response.bodyOrThrow().profile) {
-                    username shouldBe followed.username
-                    bio shouldBe ""
-                    image shouldBe ""
-                    following shouldBe true
-                }
+        val response =
+            client.request(Api / Profiles / Username(followed.username) / Follow / add) {
+                tokenAuth(token.value)
             }
+
+        assert(response.httpResponse.status == HttpStatusCode.OK)
+        with(response.bodyOrThrow().profile) {
+            assert(username == followed.username)
+            assert(bio == "")
+            assert(image == "")
+            assert(following)
+        }
+    }
+
+    testServer("can unfollow a profile") {
+        val (token) = registerUser()
+        val followed = userFixture()
+        registerUser(followed)
+
+        val response =
+            client.request(Api / Profiles / Username(followed.username) / Follow / remove) {
+                tokenAuth(token.value)
+            }
+
+        assert(response.httpResponse.status == HttpStatusCode.OK)
+        with(response.bodyOrThrow().profile) {
+            assert(username == followed.username)
+            assert(bio == "")
+            assert(image == "")
+            assert(!following)
+        }
+    }
+
+    testServer("needs token to follow") {
+        val response =
+            client.request(Api / Profiles / Username(userFixture().username) / Follow / add)
+        assert(response.httpResponse.status == HttpStatusCode.Unauthorized)
+    }
+
+    testServer("needs token to unfollow") {
+        val response =
+            client.request(Api / Profiles / Username(userFixture().username) / Follow / remove)
+        assert(response.httpResponse.status == HttpStatusCode.Unauthorized)
+    }
+
+    testServer("username invalid to follow") {
+        val (token) = registerUser()
+
+        val response =
+            client.request(Api / Profiles / Username(userFixture().username) / Follow / add) {
+                tokenAuth(token.value)
+            }
+
+        assert(response.httpResponse.status == HttpStatusCode.UnprocessableEntity)
+    }
+
+    testServer("username invalid to unfollow") {
+        val (token) = registerUser()
+
+        val response =
+            client.request(Api / Profiles / Username(userFixture().username) / Follow / remove) {
+                tokenAuth(token.value)
+            }
+
+        assert(response.httpResponse.status == HttpStatusCode.UnprocessableEntity)
+    }
+
+    testServer("get profile with no following") {
+        val (user) = registerUser()
+
+        val response = client.request(Api / Profiles / Username(user.username) / get)
+
+        assert(response.httpResponse.status == HttpStatusCode.OK)
+        with(response.bodyOrThrow().profile) {
+            assert(username == user.username)
+            assert(bio == "")
+            assert(image == "")
+            assert(!following)
+        }
+    }
+
+    testServer("get profile shows following for current viewer") {
+        val (token) = registerUser()
+        val followed = userFixture()
+        registerUser(followed)
+
+        client.request(Api / Profiles / Username(followed.username) / Follow / add) {
+            tokenAuth(token.value)
         }
 
-        "Can unfollow profile" {
-            withServer { dependencies ->
-                val (token) = dependencies.registerUser()
-                val followed = userFixture()
-                dependencies.registerUser(followed)
-
-                val response =
-                    request(Api / Profiles / Username(followed.username) / Follow / remove) {
-                        tokenAuth(token.value)
-                    }
-
-                response.httpResponse.status shouldBe HttpStatusCode.OK
-                with(response.bodyOrThrow().profile) {
-                    username shouldBe followed.username
-                    bio shouldBe ""
-                    image shouldBe ""
-                    following shouldBe false
-                }
+        val response =
+            client.request(Api / Profiles / Username(followed.username) / get) {
+                tokenAuth(token.value)
             }
+
+        assert(response.httpResponse.status == HttpStatusCode.OK)
+        with(response.bodyOrThrow().profile) {
+            assert(username == followed.username)
+            assert(following)
+        }
+    }
+
+    testServer("get profile follow state is viewer specific") {
+        val follower = registerUser()
+        val viewer = registerUser()
+        val followed = registerUser()
+
+        client.request(Api / Profiles / Username(followed.user.username) / Follow / add) {
+            tokenAuth(follower.token.value)
         }
 
-        "Needs token to follow" {
-            withServer {
-                val response =
-                    request(Api / Profiles / Username(userFixture().username) / Follow / add)
-                response.httpResponse.status shouldBe HttpStatusCode.Unauthorized
+        val response =
+            client.request(Api / Profiles / Username(followed.user.username) / get) {
+                tokenAuth(viewer.token.value)
             }
+
+        assert(response.httpResponse.status == HttpStatusCode.OK)
+        with(response.bodyOrThrow().profile) {
+            assert(username == followed.user.username)
+            assert(!following)
         }
+    }
 
-        "Needs token to unfollow" {
-            withServer {
-                val response =
-                    request(Api / Profiles / Username(userFixture().username) / Follow / remove)
-                response.httpResponse.status shouldBe HttpStatusCode.Unauthorized
-            }
-        }
+    testServer("get profile invalid username") {
+        val invalidUsername = userFixture().username
 
-        "Username invalid to follow" {
-            withServer { dependencies ->
-                val (token) = dependencies.registerUser()
+        val response = client.request(Api / Profiles / Username(invalidUsername) / get)
 
-                val response =
-                    request(Api / Profiles / Username(userFixture().username) / Follow / add) {
-                        tokenAuth(token.value)
-                    }
+        assert(response.httpResponse.status == HttpStatusCode.UnprocessableEntity)
+        assert(
+            response.httpResponse.body<GenericErrorModel>().errors.body ==
+                listOf("User with username=$invalidUsername not found")
+        )
+    }
 
-                response.httpResponse.status shouldBe HttpStatusCode.UnprocessableEntity
-            }
-        }
+    testServer("get profile by username missing username") {
+        val response = client.request(Api / Profiles / Username("%20") / get)
 
-        "Username invalid to unfollow" {
-            withServer { dependencies ->
-                val (token) = dependencies.registerUser()
-
-                val response =
-                    request(Api / Profiles / Username(userFixture().username) / Follow / remove) {
-                        tokenAuth(token.value)
-                    }
-
-                response.httpResponse.status shouldBe HttpStatusCode.UnprocessableEntity
-            }
-        }
-
-        "Get profile with no following" {
-            withServer { dependencies ->
-                val (user) = dependencies.registerUser()
-
-                val response = request(Api / Profiles / Username(user.username) / get)
-
-                response.httpResponse.status shouldBe HttpStatusCode.OK
-                with(response.bodyOrThrow().profile) {
-                    username shouldBe user.username
-                    bio shouldBe ""
-                    image shouldBe ""
-                    following shouldBe false
-                }
-            }
-        }
-
-        "Get profile shows following for current viewer" {
-            withServer { dependencies ->
-                val (token) = dependencies.registerUser()
-                val followed = userFixture()
-                dependencies.registerUser(followed)
-
-                request(Api / Profiles / Username(followed.username) / Follow / add) {
-                    tokenAuth(token.value)
-                }
-
-                val response =
-                    request(Api / Profiles / Username(followed.username) / get) {
-                        tokenAuth(token.value)
-                    }
-
-                response.httpResponse.status shouldBe HttpStatusCode.OK
-                with(response.bodyOrThrow().profile) {
-                    username shouldBe followed.username
-                    following shouldBe true
-                }
-            }
-        }
-
-        "Get profile follow state is viewer specific" {
-            withServer { dependencies ->
-                val follower = dependencies.registerUser()
-                val viewer = dependencies.registerUser()
-                val followed = dependencies.registerUser()
-
-                request(Api / Profiles / Username(followed.user.username) / Follow / add) {
-                    tokenAuth(follower.token.value)
-                }
-
-                val response =
-                    request(Api / Profiles / Username(followed.user.username) / get) {
-                        tokenAuth(viewer.token.value)
-                    }
-
-                response.httpResponse.status shouldBe HttpStatusCode.OK
-                with(response.bodyOrThrow().profile) {
-                    username shouldBe followed.user.username
-                    following shouldBe false
-                }
-            }
-        }
-
-        "Get profile invalid username" {
-            withServer {
-                val invalidUsername = userFixture().username
-
-                val response = request(Api / Profiles / Username(invalidUsername) / get)
-
-                response.httpResponse.status shouldBe HttpStatusCode.UnprocessableEntity
-                response.httpResponse.body<GenericErrorModel>().errors.body shouldBe
-                    listOf("User with username=$invalidUsername not found")
-            }
-        }
-
-        "Get profile by username missing username" {
-            withServer {
-                val response = request(Api / Profiles / Username("%20") / get)
-
-                response.httpResponse.status shouldBe HttpStatusCode.UnprocessableEntity
-                response.httpResponse.body<GenericErrorModel>().errors.body shouldBe
-                    listOf("Missing username cannot be null or blank parameter in request")
-            }
-        }
-
-        // TODO: report bug to Spine
-        "Get profile by username missing username"
-            .config(enabled = false) {
-                withServer {
-                    val response = request(Api / Profiles / Username(" ") / get)
-
-                    response.httpResponse.status shouldBe HttpStatusCode.UnprocessableEntity
-                    response.httpResponse.body<GenericErrorModel>().errors.body shouldBe
-                        listOf("Missing username cannot be null or blank parameter in request")
-                }
-            }
-    })
+        assert(response.httpResponse.status == HttpStatusCode.UnprocessableEntity)
+        assert(
+            response.httpResponse.body<GenericErrorModel>().errors.body ==
+                listOf("Missing username cannot be null or blank parameter in request")
+        )
+    }
+}

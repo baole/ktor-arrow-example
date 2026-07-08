@@ -1,12 +1,12 @@
 package io.github.nomisrev.articles
 
 import arrow.core.raise.either
+import de.infix.testBalloon.framework.core.testSuite
 import io.github.nomisrev.CannotGenerateSlug
 import io.kotest.assertions.arrow.core.shouldBeLeft
 import io.kotest.assertions.arrow.core.shouldBeRight
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
-import de.infix.testBalloon.framework.core.testSuite
 import kotlin.random.Random
 
 @Suppress("RETURN_VALUE_NOT_USED_COERCION")
@@ -32,7 +32,8 @@ val SlugGeneratorSuite by testSuite {
             slugGenerator.generateSlug(title) { slug ->
                 slug.value == title.lowercase().replace(' ', '_')
             }
-        }.shouldBeRight()
+        }
+            .shouldBeRight()
 
         slug.value shouldContain "test_title"
         slug.value shouldContain "_"

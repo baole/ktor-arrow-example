@@ -15,8 +15,8 @@ import io.github.nomisrev.users.Login
 import io.github.nomisrev.users.RegisterUser
 import io.github.nomisrev.users.Update
 import io.github.nomisrev.users.UserId
-import io.kotest.assertions.arrow.core.shouldBeLeft
 import io.kotest.assertions.arrow.core.shouldBeRight
+import io.kotest.matchers.shouldBe
 
 fun incorrectInput(head: InvalidField, vararg tail: InvalidField) =
     IncorrectInput(nonEmptyListOf(head, *tail))
@@ -26,7 +26,7 @@ val Validation by testSuite {
     test("accumulates all invalid fields and all errors per field") {
         val input = RegisterUser(username = "", email = "not-an-email", password = "")
 
-        either { input.validate() } shouldBeLeft
+        assertRaised { input.validate() } shouldBe
             incorrectInput(
                 InvalidUsername(
                     nonEmptyListOf(
@@ -47,7 +47,7 @@ val Validation by testSuite {
     test("accumulates email and password validation errors") {
         val input = Login(email = "", password = "")
 
-        either { input.validate() } shouldBeLeft
+        assertRaised { input.validate() } shouldBe
             incorrectInput(
                 InvalidEmail(nonEmptyListOf("Cannot be blank", "'' is invalid email")),
                 InvalidPassword(
@@ -70,7 +70,7 @@ val Validation by testSuite {
                 image = null,
             )
 
-        either { input.validate() } shouldBeLeft
+        assertRaised { input.validate() } shouldBe
             incorrectInput(
                 InvalidUsername(
                     nonEmptyListOf(
@@ -106,7 +106,7 @@ val Validation by testSuite {
                 tagList = listOf("", "ok", " "),
             )
 
-        either { input.validate() } shouldBeLeft
+        assertRaised { input.validate() } shouldBe
             incorrectInput(
                 InvalidTitle(nonEmptyListOf("Cannot be blank")),
                 InvalidDescription(nonEmptyListOf("Cannot be blank")),
@@ -116,7 +116,7 @@ val Validation by testSuite {
     }
 
     test("validates body") {
-        either { NewComment(body = " ").validate() } shouldBeLeft
+        assertRaised { NewComment(body = " ").validate() } shouldBe
             incorrectInput(InvalidBody(nonEmptyListOf("Cannot be blank")))
     }
 
@@ -130,7 +130,7 @@ val Validation by testSuite {
                 )
             )
 
-        either { input.validate(userId) } shouldBeLeft
+        assertRaised { input.validate(userId) } shouldBe
             incorrectInput(
                 InvalidFeedOffset(nonEmptyListOf("too small, minimum is 0, and found -1")),
                 InvalidFeedLimit(nonEmptyListOf("too small, minimum is 1, and found 0")),
@@ -146,7 +146,7 @@ val Validation by testSuite {
                 )
             )
 
-        either { input.validate(currentUserId = null) } shouldBeLeft
+        assertRaised { input.validate(currentUserId = null) } shouldBe
             incorrectInput(
                 InvalidFeedOffset(nonEmptyListOf("too small, minimum is 0, and found -1")),
                 InvalidFeedLimit(nonEmptyListOf("too small, minimum is 1, and found 0")),

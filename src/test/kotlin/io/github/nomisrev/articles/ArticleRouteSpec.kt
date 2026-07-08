@@ -1,6 +1,5 @@
 package io.github.nomisrev.articles
 
-import arrow.core.raise.either
 import de.infix.testBalloon.framework.core.testSuite
 import io.github.nomisrev.Api
 import io.github.nomisrev.Api.Articles
@@ -15,7 +14,6 @@ import io.github.nomisrev.dependencies
 import io.github.nomisrev.registerUser
 import io.github.nomisrev.testServer
 import io.github.nomisrev.tokenAuth
-import io.kotest.assertions.arrow.core.shouldBeRight
 import io.ktor.client.call.body
 import io.ktor.http.HttpStatusCode
 import opensavvy.spine.api.div
@@ -128,7 +126,7 @@ val ArticleRouteSuite by testSuite {
     testServer("article list accepts OpenAPI offset and limit query parameters") {
         val (userId) = registerUser()
         val article = articleFixture()
-        val created = either {
+        val created =
             dependencies.articleService.createArticle(
                 CreateArticle(
                     userId,
@@ -138,8 +136,6 @@ val ArticleRouteSuite by testSuite {
                     article.tags,
                 )
             )
-        }
-            .shouldBeRight()
 
         val response =
             client.request(
@@ -158,35 +154,32 @@ val ArticleRouteSuite by testSuite {
     testServer("article list returns viewer specific metadata") {
         val author = registerUser()
         val viewer = registerUser()
-        either {
-            val article = articleFixture()
-            val created =
-                dependencies.articleService.createArticle(
-                    CreateArticle(
-                        author.userId,
-                        article.title,
-                        article.description,
-                        article.body,
-                        article.tags,
-                    )
+        val article = articleFixture()
+        val created =
+            dependencies.articleService.createArticle(
+                CreateArticle(
+                    author.userId,
+                    article.title,
+                    article.description,
+                    article.body,
+                    article.tags,
                 )
+            )
 
-            val _ = dependencies.userPersistence.followProfile(author.user.username, viewer.userId)
-            val _ = dependencies.articleService.favoriteArticle(Slug(created.slug), viewer.userId)
+        val _ = dependencies.userPersistence.followProfile(author.user.username, viewer.userId)
+        val _ = dependencies.articleService.favoriteArticle(Slug(created.slug), viewer.userId)
 
-            val response =
-                client.request(endpoint = Api / Articles / list, parameters = {}) {
-                    tokenAuth(viewer.token.value)
-                }
+        val response =
+            client.request(endpoint = Api / Articles / list, parameters = {}) {
+                tokenAuth(viewer.token.value)
+            }
 
-            val body: MultipleArticlesResponse = response.bodyOrThrow()
-            val articleResponse = body.articles.single()
-            assert(articleResponse.slug == created.slug)
-            assert(articleResponse.favorited)
-            assert(articleResponse.favoritesCount == 1L)
-            assert(articleResponse.author.following)
-        }
-            .shouldBeRight()
+        val body: MultipleArticlesResponse = response.bodyOrThrow()
+        val articleResponse = body.articles.single()
+        assert(articleResponse.slug == created.slug)
+        assert(articleResponse.favorited)
+        assert(articleResponse.favoritesCount == 1L)
+        assert(articleResponse.author.following)
     }
 
     testServer("feed returns articles from followed authors") {
@@ -194,233 +187,214 @@ val ArticleRouteSuite by testSuite {
         val followed = registerUser()
         val unrelated = registerUser()
 
-        either {
-            val _ =
-                dependencies.userPersistence.followProfile(followed.user.username, reader.userId)
+        val _ = dependencies.userPersistence.followProfile(followed.user.username, reader.userId)
 
-            val createdFollowedArticle =
-                dependencies.articleService.createArticle(followed.userId, articleFixture())
-            val _ = dependencies.articleService.createArticle(unrelated.userId, articleFixture())
+        val createdFollowedArticle =
+            dependencies.articleService.createArticle(followed.userId, articleFixture())
+        val _ = dependencies.articleService.createArticle(unrelated.userId, articleFixture())
 
-            val response =
-                client.request(
-                    endpoint = Api / Articles / feed,
-                    parameters = {
-                        offset = 0
-                        limit = 20
-                    },
-                ) {
-                    tokenAuth(reader.token.value)
-                }
+        val response =
+            client.request(
+                endpoint = Api / Articles / feed,
+                parameters = {
+                    offset = 0
+                    limit = 20
+                },
+            ) {
+                tokenAuth(reader.token.value)
+            }
 
-            val body: MultipleArticlesResponse = response.bodyOrThrow()
-            assert(body.articlesCount == 1)
-            assert(body.articles.single().slug == createdFollowedArticle.slug)
-        }
-            .shouldBeRight()
+        val body: MultipleArticlesResponse = response.bodyOrThrow()
+        assert(body.articlesCount == 1)
+        assert(body.articles.single().slug == createdFollowedArticle.slug)
     }
 
     testServer("article list filters by author") {
         val author = registerUser()
         val otherAuthor = registerUser()
 
-        either {
-            val article = articleFixture()
-            val created =
-                dependencies.articleService.createArticle(
-                    CreateArticle(
-                        author.userId,
-                        article.title,
-                        article.description,
-                        article.body,
-                        article.tags,
-                    )
+        val article = articleFixture()
+        val created =
+            dependencies.articleService.createArticle(
+                CreateArticle(
+                    author.userId,
+                    article.title,
+                    article.description,
+                    article.body,
+                    article.tags,
                 )
+            )
 
-            val otherArticle = articleFixture()
-            val _ =
-                dependencies.articleService.createArticle(
-                    CreateArticle(
-                        otherAuthor.userId,
-                        otherArticle.title,
-                        otherArticle.description,
-                        otherArticle.body,
-                        otherArticle.tags,
-                    )
+        val otherArticle = articleFixture()
+        val _ =
+            dependencies.articleService.createArticle(
+                CreateArticle(
+                    otherAuthor.userId,
+                    otherArticle.title,
+                    otherArticle.description,
+                    otherArticle.body,
+                    otherArticle.tags,
                 )
+            )
 
-            val response =
-                client.request(
-                    Api / Articles / list,
-                    parameters = {
-                        this.author = author.user.username
-                    },
-                )
+        val response =
+            client.request(
+                Api / Articles / list,
+                parameters = {
+                    this.author = author.user.username
+                },
+            )
 
-            val body: MultipleArticlesResponse = response.bodyOrThrow()
-            assert(body.articlesCount == 1)
-            assert(body.articles.single().slug == created.slug)
-            assert(body.articles.single().author.username == author.user.username)
-        }
-            .shouldBeRight()
+        val body: MultipleArticlesResponse = response.bodyOrThrow()
+        assert(body.articlesCount == 1)
+        assert(body.articles.single().slug == created.slug)
+        assert(body.articles.single().author.username == author.user.username)
     }
 
     testServer("article list filters by author when authenticated") {
         val author = registerUser()
         val viewer = registerUser()
 
-        either {
-            val article = articleFixture()
-            val created =
-                dependencies.articleService.createArticle(
-                    CreateArticle(
-                        author.userId,
-                        article.title,
-                        article.description,
-                        article.body,
-                        article.tags,
-                    )
+        val article = articleFixture()
+        val created =
+            dependencies.articleService.createArticle(
+                CreateArticle(
+                    author.userId,
+                    article.title,
+                    article.description,
+                    article.body,
+                    article.tags,
                 )
+            )
 
-            val _ = dependencies.userPersistence.followProfile(author.user.username, viewer.userId)
+        val _ = dependencies.userPersistence.followProfile(author.user.username, viewer.userId)
 
-            val response =
-                client.request(
-                    Api / Articles / list,
-                    parameters = {
-                        this.author = author.user.username
-                    },
-                ) {
-                    tokenAuth(viewer.token.value)
-                }
+        val response =
+            client.request(
+                Api / Articles / list,
+                parameters = {
+                    this.author = author.user.username
+                },
+            ) {
+                tokenAuth(viewer.token.value)
+            }
 
-            val body: MultipleArticlesResponse = response.bodyOrThrow()
-            val articleResponse = body.articles.single()
-            assert(body.articlesCount == 1)
-            assert(articleResponse.slug == created.slug)
-            assert(articleResponse.author.username == author.user.username)
-            assert(articleResponse.author.following)
-        }
-            .shouldBeRight()
+        val body: MultipleArticlesResponse = response.bodyOrThrow()
+        val articleResponse = body.articles.single()
+        assert(body.articlesCount == 1)
+        assert(articleResponse.slug == created.slug)
+        assert(articleResponse.author.username == author.user.username)
+        assert(articleResponse.author.following)
     }
 
     testServer("article list filters by tag") {
         val (userId) = registerUser()
 
-        either {
-            val created =
-                dependencies.articleService.createArticle(
-                    CreateArticle(
-                        userId,
-                        "How to train your dragon",
-                        "Ever wonder how?",
-                        "Very carefully.",
-                        setOf("dragons", "training"),
-                    )
+        val created =
+            dependencies.articleService.createArticle(
+                CreateArticle(
+                    userId,
+                    "How to train your dragon",
+                    "Ever wonder how?",
+                    "Very carefully.",
+                    setOf("dragons", "training"),
                 )
+            )
 
-            val _ =
-                dependencies.articleService.createArticle(
-                    CreateArticle(
-                        userId,
-                        "Something else",
-                        "Nothing about dragons",
-                        "Still interesting.",
-                        setOf("kotlin"),
-                    )
+        val _ =
+            dependencies.articleService.createArticle(
+                CreateArticle(
+                    userId,
+                    "Something else",
+                    "Nothing about dragons",
+                    "Still interesting.",
+                    setOf("kotlin"),
                 )
+            )
 
-            val response =
-                client.request(
-                    Api / Articles / list,
-                    parameters = {
-                        tag = "dragons"
-                    },
-                )
+        val response =
+            client.request(
+                Api / Articles / list,
+                parameters = {
+                    tag = "dragons"
+                },
+            )
 
-            val body: MultipleArticlesResponse = response.bodyOrThrow()
-            assert(body.articlesCount == 1)
-            val articleResponse = body.articles.single()
-            assert(articleResponse.slug == created.slug)
-            assert(articleResponse.tagList.contains("dragons"))
-            assert(articleResponse.tagList.contains("training"))
-        }
-            .shouldBeRight()
+        val body: MultipleArticlesResponse = response.bodyOrThrow()
+        assert(body.articlesCount == 1)
+        val articleResponse = body.articles.single()
+        assert(articleResponse.slug == created.slug)
+        assert(articleResponse.tagList.contains("dragons"))
+        assert(articleResponse.tagList.contains("training"))
     }
 
     testServer("article list filters by favorited username") {
         val author = registerUser()
         val viewer = registerUser()
 
-        either {
-            val article = articleFixture()
-            val created =
-                dependencies.articleService.createArticle(
-                    CreateArticle(
-                        author.userId,
-                        article.title,
-                        article.description,
-                        article.body,
-                        article.tags,
-                    )
+        val article = articleFixture()
+        val created =
+            dependencies.articleService.createArticle(
+                CreateArticle(
+                    author.userId,
+                    article.title,
+                    article.description,
+                    article.body,
+                    article.tags,
                 )
+            )
 
-            val _ = dependencies.articleService.favoriteArticle(Slug(created.slug), viewer.userId)
+        val _ = dependencies.articleService.favoriteArticle(Slug(created.slug), viewer.userId)
 
-            val response =
-                client.request(
-                    Api / Articles / list,
-                    parameters = {
-                        favorited = viewer.user.username
-                    },
-                )
+        val response =
+            client.request(
+                Api / Articles / list,
+                parameters = {
+                    favorited = viewer.user.username
+                },
+            )
 
-            val body: MultipleArticlesResponse = response.bodyOrThrow()
-            assert(body.articlesCount == 1)
-            val articleResponse = body.articles.single()
-            assert(articleResponse.slug == created.slug)
-            assert(articleResponse.favoritesCount == 1L)
-        }
-            .shouldBeRight()
+        val body: MultipleArticlesResponse = response.bodyOrThrow()
+        assert(body.articlesCount == 1)
+        val articleResponse = body.articles.single()
+        assert(articleResponse.slug == created.slug)
+        assert(articleResponse.favoritesCount == 1L)
     }
 
     testServer("article list filters by favorited username when authenticated") {
         val author = registerUser()
         val viewer = registerUser()
 
-        either {
-            val article = articleFixture()
-            val created =
-                dependencies.articleService.createArticle(
-                    CreateArticle(
-                        author.userId,
-                        article.title,
-                        article.description,
-                        article.body,
-                        article.tags,
-                    )
+        val article = articleFixture()
+        val created =
+            dependencies.articleService.createArticle(
+                CreateArticle(
+                    author.userId,
+                    article.title,
+                    article.description,
+                    article.body,
+                    article.tags,
                 )
+            )
 
-            val _ = dependencies.articleService.favoriteArticle(Slug(created.slug), viewer.userId)
+        val _ = dependencies.articleService.favoriteArticle(Slug(created.slug), viewer.userId)
 
-            val response =
-                client.request(
-                    Api / Articles / list,
-                    parameters = {
-                        favorited = viewer.user.username
-                    },
-                ) {
-                    tokenAuth(viewer.token.value)
-                }
+        val response =
+            client.request(
+                Api / Articles / list,
+                parameters = {
+                    favorited = viewer.user.username
+                },
+            ) {
+                tokenAuth(viewer.token.value)
+            }
 
-            val body: MultipleArticlesResponse = response.bodyOrThrow()
-            assert(body.articlesCount == 1)
-            val articleResponse = body.articles.single()
-            assert(articleResponse.slug == created.slug)
-            assert(articleResponse.favorited)
-            assert(articleResponse.favoritesCount == 1L)
-        }
-            .shouldBeRight()
+        val body: MultipleArticlesResponse = response.bodyOrThrow()
+        assert(body.articlesCount == 1)
+        val articleResponse = body.articles.single()
+        assert(articleResponse.slug == created.slug)
+        assert(articleResponse.favorited)
+        assert(articleResponse.favoritesCount == 1L)
     }
 
     testServer("create article with tags") {

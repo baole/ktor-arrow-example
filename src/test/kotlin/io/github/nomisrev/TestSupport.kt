@@ -133,4 +133,6 @@ fun <E> assertRaised(block: Raise<E>.() -> Unit): E =
     recover({
         block()
         throw AssertionError("Expected erro to be raised")
-    }) { e -> e }
+    }) { e ->
+        e
+    }

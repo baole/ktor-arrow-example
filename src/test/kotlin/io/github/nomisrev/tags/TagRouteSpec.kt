@@ -1,53 +1,36 @@
 package io.github.nomisrev.tags
 
-import arrow.core.raise.either
+import de.infix.testBalloon.framework.core.testSuite
 import io.github.nomisrev.Api
 import io.github.nomisrev.Api.Tags
 import io.github.nomisrev.Api.Tags.list
-import io.github.nomisrev.articleFixture
-import io.github.nomisrev.articles.CreateArticle
+import io.github.nomisrev.client
+import io.github.nomisrev.createArticle
+import io.github.nomisrev.dependencies
 import io.github.nomisrev.registerUser
-import io.github.nomisrev.withServer
-import io.kotest.assertions.arrow.core.shouldBeRight
-import io.kotest.core.spec.style.StringSpec
+import io.github.nomisrev.testServer
 import io.ktor.http.HttpStatusCode
 import opensavvy.spine.api.div
 import opensavvy.spine.client.bodyOrThrow
 import opensavvy.spine.client.request
 
-class TagRouteSpec :
-    StringSpec({
-        "Check for empty list retrieval" {
-            withServer {
-                val response = request(Api / Tags / list)
+@Suppress("RETURN_VALUE_NOT_USED_COERCION")
+val TagRouteSuite by testSuite {
+    testServer("check for empty list retrieval") {
+        val response = client.request(Api / Tags / list)
 
-                assert(response.httpResponse.status == HttpStatusCode.OK)
-                assert(response.bodyOrThrow().tags == emptyList<String>())
-            }
-        }
+        assert(response.httpResponse.status == HttpStatusCode.OK)
+        assert(response.bodyOrThrow().tags == emptyList<String>())
+    }
 
-        "Can get all tags" {
-            withServer { dependencies ->
-                val (userId) = dependencies.registerUser()
+    testServer("can get all tags") {
+        val (userId) = registerUser()
 
-                val article = articleFixture()
-                either {
-                    dependencies.articleService.createArticle(
-                        CreateArticle(
-                            userId,
-                            article.title,
-                            article.description,
-                            article.body,
-                            article.tags,
-                        )
-                    )
-                }
-                    .shouldBeRight()
+        val article = dependencies.articleService.createArticle(userId)
 
-                val response = request(Api / Tags / list)
+        val response = client.request(Api / Tags / list)
 
-                assert(response.httpResponse.status == HttpStatusCode.OK)
-                assert(response.bodyOrThrow().tags.toSet().containsAll(article.tags))
-            }
-        }
-    })
+        assert(response.httpResponse.status == HttpStatusCode.OK)
+        assert(response.bodyOrThrow().tags.toSet().containsAll(article.tagList))
+    }
+}
