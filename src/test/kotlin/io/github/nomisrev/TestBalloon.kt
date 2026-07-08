@@ -15,6 +15,7 @@ import io.github.nefilim.kjwt.JWSHMAC512Algorithm
 import io.github.nefilim.kjwt.JWT
 import io.github.nefilim.kjwt.KJWTVerificationError
 import io.github.nomisrev.articles.Article
+import io.github.nomisrev.articles.ArticleService
 import io.github.nomisrev.articles.CreateArticle
 import io.github.nomisrev.env.Dependencies
 import io.github.nomisrev.env.kotlinXSerializersModule
@@ -29,84 +30,104 @@ import kotlinx.serialization.json.Json
 
 @TestRegistering
 fun TestSuite.testService(
-    @TestElementName name: String,
-    testConfig: TestConfig = TestConfig,
-    test: suspend context(Dependencies) Test.ExecutionScope.() -> Unit,
+  @TestElementName name: String,
+  testConfig: TestConfig = TestConfig,
+  test: suspend context(Dependencies) Test.ExecutionScope.() -> Unit,
 ) =
-    test(name, testConfig) {
-        withTestDependencies { dependencies ->
-            test.invoke(dependencies, this@test)
-        }
+  test(name, testConfig) {
+    withTestDependencies { dependencies ->
+      test.invoke(dependencies, this@test)
     }
+  }
+
+@TestRegistering
+fun TestSuite.testDependencies(
+  @TestElementName name: String,
+  testConfig: TestConfig = TestConfig,
+  test:
+  suspend context(Dependencies, Raise<DomainError>) Test.ExecutionScope.(
+  ) -> Unit,
+) = test(name, testConfig) {
+  withTestDependencies { dependencies ->
+    either<DomainError, Unit> {
+      test.invoke(
+        dependencies,
+        contextOf<Raise<DomainError>>(),
+        this@test,
+      )
+    }
+      .shouldBeRight()
+  }
+}
 
 @TestRegistering
 fun TestSuite.testServer(
-    @TestElementName name: String,
-    testConfig: TestConfig = TestConfig,
-    test:
-        suspend context(Dependencies, HttpClient, Raise<DomainError>) Test.ExecutionScope.(
-        ) -> Unit,
+  @TestElementName name: String,
+  testConfig: TestConfig = TestConfig,
+  test:
+  suspend context(Dependencies, HttpClient, Raise<DomainError>) Test.ExecutionScope.(
+  ) -> Unit,
 ) =
-    test(name, testConfig) {
-        withTestDependencies { dependencies ->
-            testApplication {
-                application { app(dependencies) }
-                createClient {
-                    expectSuccess = false
-                    install(ContentNegotiation) {
-                        json(Json { serializersModule = kotlinXSerializersModule })
-                    }
-                }
-                    .use { client ->
-                        either<DomainError, Unit> {
-                                test.invoke(
-                                    dependencies,
-                                    client,
-                                    contextOf<Raise<DomainError>>(),
-                                    this@test,
-                                )
-                            }
-                            .shouldBeRight()
-                    }
-            }
+  test(name, testConfig) {
+    withTestDependencies { dependencies ->
+      testApplication {
+        application { app(dependencies) }
+        createClient {
+          expectSuccess = false
+          install(ContentNegotiation) {
+            json(Json { serializersModule = kotlinXSerializersModule })
+          }
         }
+          .use { client ->
+            either<DomainError, Unit> {
+              test.invoke(
+                dependencies,
+                client,
+                contextOf<Raise<DomainError>>(),
+                this@test,
+              )
+            }
+              .shouldBeRight()
+          }
+      }
     }
+  }
 
 context(client: HttpClient)
 val client: HttpClient
-    get() = client
+  get() = client
 
 context(dependencies: Dependencies)
 val dependencies: Dependencies
-    get() = dependencies
+  get() = dependencies
 
-context(dependencies: Dependencies, _: Raise<DomainError>)
-suspend fun createArticle(userId: UserId, article: ArticleFixture = articleFixture()): Article =
-    dependencies.articleService.createArticle(
-        CreateArticle(
-            userId,
-            article.title,
-            article.description,
-            article.body,
-            article.tags,
-        )
+context(_: Raise<DomainError>)
+suspend fun ArticleService.createArticle(userId: UserId, article: ArticleFixture = articleFixture()): Article =
+  createArticle(
+    CreateArticle(
+      userId,
+      article.title,
+      article.description,
+      article.body,
+      article.tags,
     )
+  )
 
 context(dependencies: Dependencies, _: Raise<DomainError>)
 fun registerUser(fixture: UserFixture = userFixture()): RegisteredUser {
-    val token =
-        dependencies.userService.register(
-            RegisterUser(fixture.username, fixture.email, fixture.password)
-        )
-    val jwt =
-        withError({ JwtInvalid(it.toString()) }) {
-            JWT.decodeT(token.value, JWSHMAC512Algorithm)
-                .bind<KJWTVerificationError, DecodedJWT<JWSHMAC512Algorithm>>()
-        }
-    val id =
-        ensureNotNull(jwt.claimValueAsLong("id").getOrNull()) {
-            JwtInvalid("id missing from JWT Token")
-        }
+  val token =
+    dependencies.userService.register(
+      RegisterUser(fixture.username, fixture.email, fixture.password)
+    )
+  val jwt =
+    withError({ JwtInvalid(it.toString()) }) {
+      JWT.decodeT(token.value, JWSHMAC512Algorithm)
+        .bind<KJWTVerificationError, DecodedJWT<JWSHMAC512Algorithm>>()
+    }
+  val id =
+    ensureNotNull(jwt.claimValueAsLong("id").getOrNull()) {
+      JwtInvalid("id missing from JWT Token")
+    }
 
-    return RegisteredUser(fixture, token, UserId(id))
+  return RegisteredUser(fixture, token, UserId(id))
 }

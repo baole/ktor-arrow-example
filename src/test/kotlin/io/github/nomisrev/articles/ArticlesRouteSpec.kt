@@ -16,6 +16,7 @@ import io.github.nomisrev.Api.Articles.Slug.delete as deleteArticle
 import io.github.nomisrev.Api.Articles.Slug.get
 import io.github.nomisrev.Api.Articles.Slug.update as updateArticle
 import io.github.nomisrev.GenericErrorModel
+import io.github.nomisrev.articleFixture
 import io.github.nomisrev.client
 import io.github.nomisrev.createArticle
 import io.github.nomisrev.dependencies
@@ -42,7 +43,7 @@ val ArticlesRouteSuite by testSuite {
 
     testServer("Can get an article by slug") {
         val user = registerUser()
-        val created = createArticle(user.userId)
+        val created = dependencies.articleService.createArticle(user.userId, articleFixture())
 
         val response = client.request(Api / Articles / Slug(created.slug) / get)
 
@@ -65,7 +66,7 @@ val ArticlesRouteSuite by testSuite {
     testServer("authenticated article reads return viewer specific metadata") {
         val author = registerUser()
         val viewer = registerUser()
-        val created = createArticle(author.userId)
+        val created = dependencies.articleService.createArticle(author.userId, articleFixture())
 
         val _ = dependencies.userPersistence.followProfile(author.user.username, viewer.userId)
         val _ =
@@ -89,7 +90,7 @@ val ArticlesRouteSuite by testSuite {
 
     testServer("can update an article by slug") {
         val author = registerUser()
-        val created = createArticle(author.userId)
+        val created = dependencies.articleService.createArticle(author.userId, articleFixture())
 
         val response =
             client.request(
@@ -111,7 +112,7 @@ val ArticlesRouteSuite by testSuite {
     testServer("favoriting an article updates the response and persisted state") {
         val author = registerUser()
         val viewer = registerUser()
-        val created = createArticle(author.userId)
+        val created = dependencies.articleService.createArticle(author.userId, articleFixture())
 
         val favoriteResponse =
             client.request(Api / Articles / Slug(created.slug) / Favorite / favoriteArticle) {
@@ -139,7 +140,7 @@ val ArticlesRouteSuite by testSuite {
     testServer("favoriting an already favorited article is idempotent") {
         val author = registerUser()
         val viewer = registerUser()
-        val created = createArticle(author.userId)
+        val created = dependencies.articleService.createArticle(author.userId, articleFixture())
 
         val _ =
             client.request(Api / Articles / Slug(created.slug) / Favorite / favoriteArticle) {
@@ -172,7 +173,7 @@ val ArticlesRouteSuite by testSuite {
     testServer("unfavoriting an article updates the response and persisted state") {
         val author = registerUser()
         val viewer = registerUser()
-        val created = createArticle(author.userId)
+        val created = dependencies.articleService.createArticle(author.userId, articleFixture())
 
         val _ =
             client.request(Api / Articles / Slug(created.slug) / Favorite / favoriteArticle) {
@@ -204,7 +205,7 @@ val ArticlesRouteSuite by testSuite {
 
     testServer("can get comments for an article by slug when authenticated") {
         val user = registerUser()
-        val created = createArticle(user.userId)
+        val created = dependencies.articleService.createArticle(user.userId, articleFixture())
 
         val response =
             client.request(Api / Articles / Slug(created.slug) / Comments / list) {
@@ -217,7 +218,7 @@ val ArticlesRouteSuite by testSuite {
 
     testServer("can get comments for an article when not authenticated") {
         val (userId) = registerUser()
-        val created = createArticle(userId)
+        val created = dependencies.articleService.createArticle(userId, articleFixture())
 
         val response = client.request(Api / Articles / Slug(created.slug) / Comments / list)
 
@@ -227,7 +228,7 @@ val ArticlesRouteSuite by testSuite {
 
     testServer("can list comments for an article when authenticated") {
         val (user, token, userId) = registerUser()
-        val created = createArticle(userId)
+        val created = dependencies.articleService.createArticle(userId, articleFixture())
 
         val _ =
             client.request(
@@ -251,7 +252,7 @@ val ArticlesRouteSuite by testSuite {
 
     testServer("can list comments for an article without authentication") {
         val (user, token, userId) = registerUser()
-        val created = createArticle(userId)
+        val created = dependencies.articleService.createArticle(userId, articleFixture())
 
         val _ =
             client.request(
@@ -273,7 +274,7 @@ val ArticlesRouteSuite by testSuite {
     testServer("Can add a comment to an article") {
         val (user, token, userId) = registerUser()
         val comment = "This is a comment ${user.username}"
-        val created = createArticle(userId)
+        val created = dependencies.articleService.createArticle(userId, articleFixture())
 
         val response =
             client.request(
@@ -290,7 +291,7 @@ val ArticlesRouteSuite by testSuite {
 
     testServer("Can not add a comment to an article with invalid token") {
         val (userId) = registerUser()
-        val created = createArticle(userId)
+        val created = dependencies.articleService.createArticle(userId, articleFixture())
 
         val response =
             client.request(
@@ -305,7 +306,7 @@ val ArticlesRouteSuite by testSuite {
 
     testServer("Can not add a comment to an article with empty body") {
         val user = registerUser()
-        val created = createArticle(user.userId)
+        val created = dependencies.articleService.createArticle(user.userId, articleFixture())
 
         val response =
             client.request(
@@ -320,7 +321,7 @@ val ArticlesRouteSuite by testSuite {
 
     testServer("can delete a comment from an article") {
         val user = registerUser()
-        val created = createArticle(user.userId)
+        val created = dependencies.articleService.createArticle(user.userId, articleFixture())
 
         val createdComment =
             client
@@ -356,7 +357,7 @@ val ArticlesRouteSuite by testSuite {
 
     testServer("can delete an article by slug") {
         val user = registerUser()
-        val created = createArticle(user.userId)
+        val created = dependencies.articleService.createArticle(user.userId, articleFixture())
 
         val deleteResponse =
             client.request(Api / Articles / Slug(created.slug) / deleteArticle) {

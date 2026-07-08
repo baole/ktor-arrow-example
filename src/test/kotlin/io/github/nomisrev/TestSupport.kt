@@ -1,9 +1,11 @@
 package io.github.nomisrev
 
+import arrow.core.raise.context.Raise
 import arrow.core.raise.context.bind
 import arrow.core.raise.context.ensureNotNull
 import arrow.core.raise.context.withError
 import arrow.core.raise.either
+import arrow.core.raise.recover
 import arrow.fx.coroutines.resourceScope
 import io.github.nefilim.kjwt.DecodedJWT
 import io.github.nefilim.kjwt.JWSHMAC512Algorithm
@@ -126,3 +128,9 @@ fun Dependencies.registerUser(fixture: UserFixture = userFixture()): RegisteredU
 
 fun HttpMessageBuilder.tokenAuth(token: String): Unit =
     header(HttpHeaders.Authorization, "Token $token")
+
+fun <E> assertRaised(block: Raise<E>.() -> Unit): E =
+    recover({
+        block()
+        throw AssertionError("Expected erro to be raised")
+    }) { e -> e }

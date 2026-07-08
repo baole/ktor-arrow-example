@@ -198,8 +198,9 @@ val ArticleRouteSuite by testSuite {
             val _ =
                 dependencies.userPersistence.followProfile(followed.user.username, reader.userId)
 
-            val createdFollowedArticle = createArticle(followed.userId)
-            val _ = createArticle(unrelated.userId)
+            val createdFollowedArticle =
+                dependencies.articleService.createArticle(followed.userId, articleFixture())
+            val _ = dependencies.articleService.createArticle(unrelated.userId, articleFixture())
 
             val response =
                 client.request(
