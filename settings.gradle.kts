@@ -1,5 +1,6 @@
 pluginManagement {
     repositories {
+        mavenLocal()
         gradlePluginPortal()
         mavenCentral()
     }
@@ -9,6 +10,7 @@ rootProject.name = "ktor-arrow-sample"
 
 dependencyResolutionManagement {
     repositories {
+        mavenLocal()
         mavenCentral()
     }
     versionCatalogs {
@@ -16,3 +18,6 @@ dependencyResolutionManagement {
         create("ktorLibs").from("io.ktor:ktor-version-catalog:3.5.1")
     }
 }
+
+include(":konture-test")
+

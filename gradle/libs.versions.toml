@@ -17,6 +17,7 @@ testcontainers = "1.21.4"
 version-catalog-update = "1.1.0"
 spine = "0.12.0"
 testballoon = "1.0.1-K2.4.0"
+konture = "0.6.2"
 
 [libraries]
 arrow-core = { module = "io.arrow-kt:arrow-core", version.ref = "arrow" }
@@ -39,6 +40,7 @@ spine-server = { module = "dev.opensavvy.spine:server", version.ref = "spine" }
 spine-server-arrow =  { module = "dev.opensavvy.spine:server-arrow", version.ref = "spine" }
 spine-client =  { module = "dev.opensavvy.spine:client", version.ref = "spine" }
 testballoon-framework-core = { module = "de.infix.testBalloon:testBalloon-framework-core", version.ref = "testballoon" }
+konture-test = { module = "io.github.baole:konture", version.ref = "konture" }
 
 [bundles]
 arrow = [
@@ -63,3 +65,4 @@ spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 sqldelight = { id = "app.cash.sqldelight", version.ref = "sqldelight" }
 testballoon = { id = "de.infix.testBalloon", version.ref = "testballoon" }
 version-catalog-update = { id = "nl.littlerobots.version-catalog-update", version.ref = "version-catalog-update" }
+konture = { id = "io.github.baole.konture", version.ref = "konture" }
