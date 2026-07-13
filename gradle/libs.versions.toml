@@ -17,7 +17,7 @@ testcontainers = "1.21.4"
 version-catalog-update = "1.1.0"
 spine = "0.12.0"
 testballoon = "1.0.1-K2.4.0"
-konture = "0.6.2"
+konture = "0.6.6"
 
 [libraries]
 arrow-core = { module = "io.arrow-kt:arrow-core", version.ref = "arrow" }
