@@ -71,7 +71,7 @@ val ArticlesRouteSuite by testSuite {
         val _ = dependencies.userPersistence.followProfile(author.user.username, viewer.userId)
         val _ =
             dependencies.articleService.favoriteArticle(
-                io.github.nomisrev.articles.Slug(created.slug),
+                Slug(created.slug),
                 viewer.userId,
             )
 
