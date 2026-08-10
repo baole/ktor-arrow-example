@@ -13,7 +13,6 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
   alias(libs.plugins.spotless)
   alias(libs.plugins.version.catalog.update)
   alias(libs.plugins.dev.tools)
-  alias(libs.plugins.konture)
 }
 
 application {

@@ -6,6 +6,10 @@ pluginManagement {
     }
 }
 
+plugins {
+    id("io.github.baole.konture.settings") version "0.7.7"
+}
+
 rootProject.name = "ktor-arrow-sample"
 
 dependencyResolutionManagement {

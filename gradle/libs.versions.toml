@@ -17,7 +17,7 @@ testcontainers = "1.21.4"
 version-catalog-update = "1.1.0"
 spine = "0.12.0"
 testballoon = "1.0.1-K2.4.0"
-konture = "0.6.6"
+konture = "0.7.7"
 
 [libraries]
 arrow-core = { module = "io.arrow-kt:arrow-core", version.ref = "arrow" }
@@ -66,3 +66,4 @@ sqldelight = { id = "app.cash.sqldelight", version.ref = "sqldelight" }
 testballoon = { id = "de.infix.testBalloon", version.ref = "testballoon" }
 version-catalog-update = { id = "nl.littlerobots.version-catalog-update", version.ref = "version-catalog-update" }
 konture = { id = "io.github.baole.konture", version.ref = "konture" }
+konture-settings = { id = "io.github.baole.konture.settings", version.ref = "konture" }
